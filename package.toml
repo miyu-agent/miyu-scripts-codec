@@ -1,0 +1,6 @@
+[package]
+version = "0.1.0"
+name = { en = "Encode and hash", zh = "编解码" }
+summary = { en = "Hashes, base64, hex, url, html entities, rot13", zh = "算哈希，做 base64、hex、url、html 实体、rot13 的编码解码" }
+author = "SHORiN-KiWATA"
+icon = "code"
