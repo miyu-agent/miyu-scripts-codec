@@ -89,5 +89,15 @@ class EncodeInputFormat(Sandbox):
         self.assertEqual(out.strip(), "<o>")
 
 
+class TopLevelType(Sandbox):
+    # 审计 #176：顶层不是对象时报统一的一句，退出码 1。
+    def test_non_object_args_friendly_error(self):
+        for args in ([], None):
+            with self.subTest(args=args):
+                code, out = self.call(args)
+                self.assertEqual(code, 1, out)
+                self.assertIn("参数要是一个 JSON 对象", out)
+
+
 if __name__ == "__main__":
     unittest.main()
