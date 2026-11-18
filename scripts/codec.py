@@ -114,11 +114,16 @@ def need_format(args):
 
 def do_encode(args, text):
     fmt = need_format(args)
+    data = as_bytes(text, args.get("input_format") or "text")
+    if fmt in ("html", "rot13"):
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            raise Failure(f"{fmt} 编码的是文字：input 照 input_format 解出来的字节不是 UTF-8") from None
     if fmt == "html":
         return html.escape(text, quote=True)
     if fmt == "rot13":
         return codecs.encode(text, "rot_13")
-    data = as_bytes(text, args.get("input_format") or "text")
     if fmt == "base64":
         return base64.b64encode(data).decode()
     if fmt == "base64url":
