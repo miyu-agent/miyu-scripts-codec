@@ -4,7 +4,6 @@
 # Description: Hash text or bytes, or encode/decode base64, base64url, hex, url, html entities, rot13. Exact bytes, no guessing.
 # 描述：算哈希（md5、sha 系列、blake2、crc32 等），或做 base64、hex、url、html 实体、rot13 的编码和解码。
 # Timeout: 20
-# Need load: no
 # Clicall: yes
 # Parameters:
 # {"type": "object", "properties": {
