@@ -165,6 +165,21 @@ def known_params():
     return set(json.loads("".join(lines)).get("properties", {}))
 
 
+def has_lone_surrogate(value):
+    """JSON 里的 \\ud800 这类孤立代理字符能读进来，但不是合法文字：编成 UTF-8、打印都会炸。"""
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            return True
+        return False
+    if isinstance(value, dict):
+        return any(has_lone_surrogate(k) or has_lone_surrogate(v) for k, v in value.items())
+    if isinstance(value, list):
+        return any(has_lone_surrogate(v) for v in value)
+    return False
+
+
 def reject_unknown(args):
     unknown = sorted(set(args) - known_params())
     if unknown:
@@ -180,6 +195,9 @@ def main():
         sys.exit(1)
     if not isinstance(args, dict):
         print("错误：参数要是一个 JSON 对象")
+        sys.exit(1)
+    if has_lone_surrogate(args):
+        print("错误：参数里有孤立的代理字符（JSON 里单独的 \\ud800～\\udfff），不是合法的文字。要处理原始字节请用 input_format hex 或 base64")
         sys.exit(1)
     reject_unknown(args)
     try:
