@@ -12,6 +12,7 @@ import io
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -97,6 +98,51 @@ class TopLevelType(Sandbox):
                 code, out = self.call(args)
                 self.assertEqual(code, 1, out)
                 self.assertIn("参数要是一个 JSON 对象", out)
+
+
+class LoneSurrogate(Sandbox):
+    # 审计收尾：JSON 里写 "\ud800" 这种孤立代理字符，json.load 照收，后面 encode("utf-8") 或 print 时
+    # 抛 UnicodeEncodeError、打 traceback。要的是一句友好报错、退出码 1。
+    # 用子进程跑：print 那一步只有真的 stdout 才会炸，StringIO 收得下代理字符。
+    CASES = [
+        {"op": "hash", "input": "a\ud800"},
+        {"op": "hash", "input": "a", "algorithms": "x\ud800"},
+        {"op": "encode", "format": "base64", "input": "\ud800"},
+        {"op": "encode", "format": "html", "input": "\ud800"},
+        {"op": "encode", "format": "rot13", "input": "\udc80"},
+        {"op": "decode", "format": "url", "input": "\ud800"},
+        {"op": "decode", "format": "html", "input": "\ud800"},
+        {"op": "decode", "format": "rot13", "input": "\ud800"},
+        {"op": "hash", "input": "a", "x\ud800": 1},
+    ]
+
+    def run_script(self, args):
+        return subprocess.run([sys.executable, "-I", "-B", str(SCRIPT)], input=json.dumps(args),
+                              capture_output=True, text=True, encoding="utf-8", timeout=30)
+
+    def test_friendly_error_no_traceback(self):
+        for args in self.CASES:
+            with self.subTest(args=json.dumps(args)):
+                res = self.run_script(args)
+                self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+                self.assertNotIn("Traceback", res.stderr)
+                self.assertIn("代理字符", res.stdout)
+
+    # 防改坏（现在就绿）：input 要先当 hex、base64 读的，代理字符本来就落在「不是合法的 hex/base64」。
+    def test_hex_and_base64_input_still_friendly(self):
+        for args in ({"op": "encode", "format": "hex", "input": "\ud800", "input_format": "hex"},
+                     {"op": "decode", "format": "base64", "input": "\ud800"}):
+            with self.subTest(args=json.dumps(args)):
+                res = self.run_script(args)
+                self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+                self.assertNotIn("Traceback", res.stderr)
+                self.assertTrue(res.stdout.startswith("错误："), res.stdout)
+
+    # 防改坏（现在就绿）：合法的非 BMP 字符（JSON 里成对的代理）照常算。
+    def test_surrogate_pair_is_fine(self):
+        res = self.run_script({"op": "encode", "format": "hex", "input": "\ud83d\ude00"})
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertEqual(res.stdout.strip(), "f09f9880")
 
 
 if __name__ == "__main__":
